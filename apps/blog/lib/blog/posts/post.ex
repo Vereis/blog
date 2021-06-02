@@ -17,6 +17,8 @@ defmodule Blog.Posts.Post do
   schema "posts" do
     field :normalized_title, :string
     field :title, :string
+    field :source_url, :string
+    field :url, :string
     field :content, :string
     field :raw_content, :string
     field :description, :string
@@ -33,16 +35,45 @@ defmodule Blog.Posts.Post do
   # Changeset functions ===========
 
   def changeset(%Post{} = post, attrs) do
+    attrs = process_attrs(attrs)
+
     post
-    |> cast(attrs, [:id, :title, :content, :created_at, :updated_at, :tags, :raw_content])
-    |> validate_required([:id, :title, :content, :created_at, :updated_at, :tags, :raw_content])
+    |> cast(attrs, [
+      :id,
+      :title,
+      :content,
+      :created_at,
+      :updated_at,
+      :tags,
+      :raw_content,
+      :source_url
+    ])
+    |> validate_required([
+      :id,
+      :title,
+      :content,
+      :created_at,
+      :updated_at,
+      :tags,
+      :raw_content,
+      :source_url
+    ])
     |> put_is_draft()
     |> put_normalized_title()
+    |> put_url()
     |> put_estimated_reading_time()
     |> put_description()
     |> unique_constraint(:id)
     |> unique_constraint(:normalized_title)
   end
+
+  defp process_attrs(%{"url" => url} = attrs),
+    do: attrs |> Map.delete("url") |> Map.put("source_url", url)
+
+  defp process_attrs(%{url: url} = attrs),
+    do: attrs |> Map.delete(:url) |> Map.put(:source_url, url)
+
+  defp process_attrs(attrs), do: attrs
 
   defp put_normalized_title(%Ecto.Changeset{changes: %{title: title}} = changeset) do
     normalized_title =
@@ -57,6 +88,14 @@ defmodule Blog.Posts.Post do
   end
 
   defp put_normalized_title(%Ecto.Changeset{} = changeset) do
+    changeset
+  end
+
+  defp put_url(%Ecto.Changeset{changes: %{normalized_title: normalized_title}} = changeset) do
+    put_change(changeset, :url, "/posts/#{normalized_title}")
+  end
+
+  defp put_url(%Ecto.Changeset{} = changeset) do
     changeset
   end
 

@@ -43,11 +43,11 @@ defmodule Blog.Posts.InternalLinks do
     {:ok, linked_posts} = Posts.list_posts_where_id_in(Map.keys(links_by_id))
 
     internal_links =
-      Enum.map(linked_posts, fn %Post{id: id, normalized_title: normalized_title} = post ->
+      Enum.map(linked_posts, fn %Post{id: id, url: url} = post ->
         %InternalLink{
           links_by_id[id]
           | post: post,
-            new_href: "href=\"/posts/#{normalized_title}\""
+            new_href: "href=\"#{url}\""
         }
       end)
 

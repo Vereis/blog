@@ -8,7 +8,8 @@
 
 <%= if @show_list_button do %>
 <p>
-  <br>
+  <a href="<%= @post.source_url %>#new_comment_field">Join the discussion</a>
+  or
   <a href="/posts">Return to Posts →</a>
 </p>
 <% end %>

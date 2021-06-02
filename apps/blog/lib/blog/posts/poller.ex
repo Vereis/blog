@@ -40,6 +40,7 @@ defmodule Blog.Posts.Poller do
             created_at: createdAt
             updated_at: updatedAt
             title
+            url
             tags: labels(first: 10) {
               nodes {
                 name
