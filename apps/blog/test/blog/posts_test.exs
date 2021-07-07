@@ -1,5 +1,5 @@
 defmodule Blog.PostsTest do
-  use ExUnit.Case, async: false
+  use Blog.DataCase, async: true
 
   alias Blog.Posts
   alias Blog.Posts.Post
@@ -14,10 +14,6 @@ defmodule Blog.PostsTest do
     raw_content: "some raw content"
   }
 
-  setup do
-    :ok = Blog.Repo.reset()
-  end
-
   describe "create_post/1" do
     test "given valid attrs, inserts post to db" do
       assert {:ok, %Post{} = post} = Posts.create_post(@required_attrs)
@@ -27,9 +23,13 @@ defmodule Blog.PostsTest do
       end
     end
 
-    test "returns changeset error when trying to insert post twice" do
-      assert {:ok, %Post{}} = Posts.create_post(@required_attrs)
-      assert {:error, %Ecto.Changeset{valid?: false}} = Posts.create_post(@required_attrs)
+    test "behaves idempotently when trying to create post twice" do
+      assert {:ok, %Post{id: 42}} = Posts.create_post(@required_attrs)
+      assert {:ok, %Post{id: 42}} = Posts.create_post(@required_attrs)
+
+      # Also updates any fields that differ
+      assert {:ok, %Post{id: 42, title: "something else"}} =
+               Posts.create_post(%{@required_attrs | title: "something else"})
     end
 
     test "given invalid attrs, returns changeset error" do
@@ -80,7 +80,10 @@ defmodule Blog.PostsTest do
 
   describe "list_posts/0" do
     setup do
-      for id <- 1..10, do: {:ok, %Post{}} = Posts.create_post(%{@required_attrs | id: id})
+      for id <- 1..10 do
+        {:ok, %Post{}} =
+          Posts.create_post(%{@required_attrs | id: id, title: Ecto.UUID.generate()})
+      end
 
       {:ok, %Post{}} = Posts.create_post(%{@required_attrs | title: "Draft: some title"})
 
@@ -97,13 +100,30 @@ defmodule Blog.PostsTest do
 
   describe "list_posts_with_tag/1" do
     setup do
-      {:ok, %Post{} = post_1} = Posts.create_post(%{@required_attrs | id: 1, tags: []})
-      {:ok, %Post{} = post_2} = Posts.create_post(%{@required_attrs | id: 2, tags: ["1"]})
-      {:ok, %Post{} = post_3} = Posts.create_post(%{@required_attrs | id: 3, tags: ["2"]})
-      {:ok, %Post{} = post_4} = Posts.create_post(%{@required_attrs | id: 4, tags: ["1", "2"]})
+      {:ok, %Post{} = post_1} =
+        Posts.create_post(%{@required_attrs | id: 1, tags: [], title: Ecto.UUID.generate()})
+
+      {:ok, %Post{} = post_2} =
+        Posts.create_post(%{@required_attrs | id: 2, tags: ["1"], title: Ecto.UUID.generate()})
+
+      {:ok, %Post{} = post_3} =
+        Posts.create_post(%{@required_attrs | id: 3, tags: ["2"], title: Ecto.UUID.generate()})
+
+      {:ok, %Post{} = post_4} =
+        Posts.create_post(%{
+          @required_attrs
+          | id: 4,
+            tags: ["1", "2"],
+            title: Ecto.UUID.generate()
+        })
 
       {:ok, %Post{} = post_5} =
-        Posts.create_post(%{@required_attrs | id: 5, tags: ["1"], title: "Draft: test"})
+        Posts.create_post(%{
+          @required_attrs
+          | id: 5,
+            tags: ["1"],
+            title: "Draft: test"
+        })
 
       {:ok, post_1: post_1, post_2: post_2, post_3: post_3, post_4: post_4, post_5: post_5}
     end
@@ -121,9 +141,11 @@ defmodule Blog.PostsTest do
       assert state.post_3 in posts_tagged_2
       assert state.post_4 in posts_tagged_2
 
+      # Since post 1 isn't tagged at all, it's not in either list
       refute state.post_1 in posts_tagged_1
       refute state.post_1 in posts_tagged_2
 
+      # Since post 5 is a draft, despite being tagged 1, it isn't returned in either list
       refute state.post_5 in posts_tagged_1
       refute state.post_5 in posts_tagged_2
     end
@@ -131,7 +153,10 @@ defmodule Blog.PostsTest do
 
   describe "list_posts_where_id_in/1" do
     setup do
-      for id <- 1..10, do: {:ok, %Post{}} = Posts.create_post(%{@required_attrs | id: id})
+      for id <- 1..10 do
+        {:ok, %Post{}} =
+          Posts.create_post(%{@required_attrs | id: id, title: Ecto.UUID.generate()})
+      end
 
       {:ok, %Post{}} = Posts.create_post(%{@required_attrs | id: 11, title: "Draft: some title"})
 
@@ -159,10 +184,16 @@ defmodule Blog.PostsTest do
 
   describe "process_internal_links/1" do
     setup do
-      {:ok, %Post{} = post_without_internal_link} = Posts.create_post(%{@required_attrs | id: 1})
+      {:ok, %Post{} = post_without_internal_link} =
+        Posts.create_post(%{@required_attrs | id: 1, title: "some title 1"})
 
       {:ok, %Post{} = post_with_internal_link} =
-        Posts.create_post(%{@required_attrs | id: 2, content: "<a href=\"#1\">link</a>"})
+        Posts.create_post(%{
+          @required_attrs
+          | id: 2,
+            content: "<a href=\"#1\">link</a>",
+            title: "some title 2"
+        })
 
       {:ok,
        post_with_internal_link: post_with_internal_link,
@@ -179,7 +210,7 @@ defmodule Blog.PostsTest do
     test "returns hydrated internal links when post contains internal links", %{
       post_with_internal_link: post_with_internal_link
     } do
-      assert {:ok, %Post{content: "<a href=\"/posts/some_title\">link</a>"}} =
+      assert {:ok, %Post{content: "<a href=\"/posts/some_title_1\">link</a>"}} =
                Posts.process_internal_links(post_with_internal_link)
     end
   end

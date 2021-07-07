@@ -6,4 +6,13 @@ pkgs.mkShell {
     pkgs.nodejs-10_x
     pkgs.inotify-tools
   ];
+
+  shellHook = ''
+    unset ERL_LIBS
+
+    export DB_PORT="1234"
+    export DB_NAME="blog"
+    export DB_USER="postgres"
+    export DB_PASSWORD="postgres"
+  '';
 }

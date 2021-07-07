@@ -37,6 +37,7 @@ defmodule Blog.MixProject do
   defp deps do
     [
       {:phoenix_pubsub, "~> 2.0"},
+      {:ecto_sql, "~> 3.0"},
       {:postgrex, ">= 0.0.0"},
       {:jason, "~> 1.0"},
       {:etso, "~> 0.1.1"},

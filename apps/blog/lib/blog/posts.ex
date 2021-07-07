@@ -8,7 +8,7 @@ defmodule Blog.Posts do
 
   @spec get_post_by_id(id :: number()) :: {:ok, %Post{}} | {:error, term()}
   def get_post_by_id(id) do
-    Post
+    Post.base_query()
     |> Post.where_id(id)
     |> Repo.one()
     |> case do
@@ -22,7 +22,7 @@ defmodule Blog.Posts do
 
   @spec get_post_by_title(title :: String.t()) :: {:ok, %Post{}} | {:error, term()}
   def get_post_by_title(title) when is_binary(title) do
-    Post
+    Post.base_query()
     |> Post.where_normalized_title(title)
     |> Repo.one()
     |> case do
@@ -34,11 +34,44 @@ defmodule Blog.Posts do
     end
   end
 
+  @spec list_posts :: {:ok, [%Post{}]}
+  def list_posts do
+    posts =
+      Post.base_query()
+      |> Post.where_is_draft(false)
+      |> Post.order_by_created_at()
+      |> Repo.all()
+
+    {:ok, posts}
+  end
+
+  @spec list_posts_with_tag(tag :: String.t()) :: {:ok, [%Post{}]}
+  def list_posts_with_tag(tag) do
+    posts =
+      Post.base_query()
+      |> Post.where_has_tag(tag)
+      |> Post.where_is_draft(false)
+      |> Post.order_by_created_at()
+      |> Repo.all()
+
+    {:ok, posts}
+  end
+
+  @spec list_posts_where_id_in([id :: number()]) :: {:ok, [%Post{}]}
+  def list_posts_where_id_in(ids) do
+    posts =
+      Post.base_query()
+      |> Post.where_id_in(ids)
+      |> Repo.all()
+
+    {:ok, posts}
+  end
+
   @spec create_post(params :: map()) :: {:ok, %Post{}} | {:error, term()}
   def create_post(params) do
     %Post{}
     |> Post.changeset(params)
-    |> Repo.insert()
+    |> Repo.insert(on_conflict: :replace_all, conflict_target: :id)
   end
 
   @spec update_post(post :: %Post{}, params :: map()) :: {:ok, %Post{}} | {:error, term()}
@@ -46,41 +79,6 @@ defmodule Blog.Posts do
     post
     |> Post.changeset(params)
     |> Repo.update()
-  end
-
-  @spec list_posts :: {:ok, [%Post{}]}
-  def list_posts do
-    posts =
-      Post
-      |> Post.where_not_is_draft()
-      |> Repo.all()
-      |> Enum.sort_by(& &1.created_at, {:desc, DateTime})
-
-    {:ok, posts}
-  end
-
-  @spec list_posts_with_tag(tag :: String.t()) :: {:ok, [%Post{}]}
-  def list_posts_with_tag(tag) do
-    {:ok, posts} = list_posts()
-
-    # No way to do this with just Etso
-    filtered_posts =
-      posts
-      |> Enum.filter(fn post ->
-        String.downcase(tag) in Enum.map(post.tags, &String.downcase/1)
-      end)
-
-    {:ok, filtered_posts}
-  end
-
-  @spec list_posts_where_id_in([id :: number()]) :: {:ok, [%Post{}]}
-  def list_posts_where_id_in(ids) do
-    posts =
-      Post
-      |> Post.where_id_in(ids)
-      |> Repo.all()
-
-    {:ok, posts}
   end
 
   @spec process_internal_links(%Post{}) :: {:ok, %Post{}}

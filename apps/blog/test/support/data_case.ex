@@ -14,6 +14,7 @@ defmodule Blog.DataCase do
   this option is not recommended for other databases.
   """
 
+  alias Ecto.Adapters.SQL.Sandbox
   use ExUnit.CaseTemplate
 
   using do
@@ -28,10 +29,12 @@ defmodule Blog.DataCase do
   end
 
   setup tags do
-    if tags[:async] do
-      raise "Can't run tests in async mode"
+    :ok = Sandbox.checkout(Blog.Repo)
+
+    unless tags[:async] do
+      Sandbox.mode(Blog.Repo, {:shared, self()})
     end
 
-    :ok = Blog.Repo.reset()
+    :ok
   end
 end

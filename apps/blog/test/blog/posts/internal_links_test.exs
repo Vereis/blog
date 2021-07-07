@@ -1,5 +1,5 @@
 defmodule Blog.Posts.InternalLinksTest do
-  use ExUnit.Case, async: false
+  use Blog.DataCase, async: true
 
   alias Blog.Posts
   alias Blog.Posts.{InternalLink, InternalLinks, Post}
@@ -15,15 +15,15 @@ defmodule Blog.Posts.InternalLinksTest do
   }
 
   setup do
-    :ok = Blog.Repo.reset()
-
-    {:ok, %Post{} = post_without_internal_link} = Posts.create_post(%{@required_attrs | id: 1})
+    {:ok, %Post{} = post_without_internal_link} =
+      Posts.create_post(%{@required_attrs | id: 1, title: Ecto.UUID.generate()})
 
     {:ok, %Post{} = post_with_internal_link} =
       Posts.create_post(%{
         @required_attrs
         | id: 2,
-          content: "<a href=\"#1\"></a><a href=\"#2\"></a><a href=\"#42\"></a>"
+          content: "<a href=\"#1\"></a><a href=\"#2\"></a><a href=\"#42\"></a>",
+          title: Ecto.UUID.generate()
       })
 
     {:ok,

@@ -38,7 +38,7 @@ defmodule BlogWeb.MixProject do
   defp deps do
     [
       {:phoenix, "~> 1.5.1"},
-      {:phoenix_ecto, "~> 4.0"},
+      {:phoenix_ecto, "~> 4.2"},
       {:phoenix_live_view, "~> 0.12.0"},
       {:floki, ">= 0.0.0", only: :test},
       {:phoenix_html, "~> 2.11"},

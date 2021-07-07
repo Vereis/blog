@@ -1,9 +1,16 @@
 use Mix.Config
 
 config :blog,
+  ecto_repos: [Blog.Repo],
   access_token: System.get_env("ACCESS_TOKEN"),
   repo: System.get_env("REPO_NAME"),
   owner: System.get_env("REPO_OWNER")
+
+config :blog, Blog.Repo,
+  database: System.get_env("DB_NAME"),
+  username: System.get_env("DB_USER"),
+  password: System.get_env("DB_PASSWORD"),
+  port: System.get_env("DB_PORT")
 
 config :blog_web,
   ecto_repos: [Blog.Repo],

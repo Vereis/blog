@@ -4,19 +4,45 @@ defmodule Blog.Posts.Poller do
   GitHub issues which get transformed into blog posts.
   """
 
+  alias Blog.GraphQL
+
+  alias Blog.Posts
+  alias Blog.Posts.Post
+
   use Task
 
   # 5 minutes
   @timeout 5000 * 60
 
-  @chunk_size 5
+  @list_posts_query """
+  query($owner: String!, $name: String!) {
+    repository(owner: $owner, name: $name) {
+      issues(filterBy: {createdBy: $owner}, first: 100, orderBy: {field: CREATED_AT, direction: DESC}) {
+        nodes {
+          id: number
+          content: bodyHTML
+          raw_content: body
+          created_at: createdAt
+          updated_at: updatedAt
+          title
+          tags: labels(first: 10) {
+            nodes {
+              name
+            }
+          }
+        }
+        totalCount
+        pageInfo {
+          endCursor
+          hasNextPage
+        }
+      }
+    }
+  }
+  """
 
   def owner, do: Application.get_env(:blog, :owner)
   def name, do: Application.get_env(:blog, :repo)
-
-  alias Blog.GraphQL
-  alias Blog.Posts
-  alias Blog.Posts.Post
 
   def start_link(_args) do
     Task.start_link(&task/0)
@@ -28,74 +54,27 @@ defmodule Blog.Posts.Poller do
     task()
   end
 
-  def fetch_posts(cursor \\ nil) do
-    """
-    query($owner: String!, $name: String!) {
-      repository(owner: $owner, name: $name) {
-        issues(#{list_chunk_opts(cursor)}) {
-          nodes {
-            id: number
-            content: bodyHTML
-            raw_content: body
-            created_at: createdAt
-            updated_at: updatedAt
-            title
-            tags: labels(first: 10) {
-              nodes {
-                name
-              }
-            }
-          }
-          totalCount
-          pageInfo {
-            endCursor
-            hasNextPage
-          }
-        }
-      }
-    }
-    """
-    |> GraphQL.query(%{owner: owner(), name: name()})
-    |> case do
-      {:ok, response} ->
-        process_response(response)
-
-      error ->
-        error
-    end
-  end
-
-  defp list_chunk_opts(nil) do
-    "filterBy: {createdBy: $owner}, first: #{@chunk_size}, orderBy: {field: CREATED_AT, direction: DESC}"
-  end
-
-  defp list_chunk_opts(cursor) do
-    "filterBy: {createdBy: $owner}, first: #{@chunk_size}, after: \"#{cursor}\", orderBy: {field: CREATED_AT, direction: DESC}"
-  end
-
-  defp process_response(response) do
-    %{
-      "nodes" => nodes,
-      "pageInfo" => %{"hasNextPage" => has_next_page?, "endCursor" => end_cursor}
-    } = response |> get_in(["data", "repository", "issues"])
-
-    for %{"tags" => %{"nodes" => tags}} = node <- nodes do
-      node = %{node | "tags" => Enum.map(tags, & &1["name"])}
-
-      case Blog.Posts.create_post(node) do
-        {:ok, %Post{} = blog_post} ->
-          {:ok, blog_post}
-
-        {:error, %Ecto.Changeset{action: :insert, valid?: false, changes: data}} ->
-          {:ok, %Post{} = post} = Posts.get_post_by_id(data.id)
-          Posts.update_post(post, node)
+  def fetch_posts do
+    posts =
+      with {:ok, response} <- GraphQL.query(@list_posts_query, %{owner: owner(), name: name()}),
+           {:ok, posts} <- build_posts_from_response(response) do
+        for post <- posts do
+          {:ok, %Post{} = post} = Posts.create_post(post)
+          post
+        end
       end
-    end
 
-    if has_next_page? do
-      fetch_posts(end_cursor)
-    else
-      :ok
-    end
+    {:ok, posts}
+  end
+
+  defp build_posts_from_response(%{
+         "data" => %{"repository" => %{"issues" => %{"nodes" => nodes}}}
+       }) do
+    posts =
+      Enum.map(nodes, fn %{"tags" => %{"nodes" => tags}} = node ->
+        %{node | "tags" => Enum.map(tags, & &1["name"])}
+      end)
+
+    {:ok, posts}
   end
 end
